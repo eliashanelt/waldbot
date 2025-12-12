@@ -137,6 +137,18 @@ var (
 			response:    stonkslopeResponse,
 			options:     Options{zeitraum: true, nutzer: true, daywindow: true},
 		},
+		{
+			Name:        "stonksall",
+			description: "Zeigt einen Graphen der Sprachchatzeit aller Nutzer über Zeit",
+			response:    stonksallResponse,
+			options:     Options{zeitraum: true},
+		},
+		{
+			Name:        "stonksslopeall",
+			description: "Generiert ein Diagram mit der Sprachchat-Zeitverteilung aller Nutzer über einen Zeitraum",
+			response:    stonksslopeallResponse,
+			options:     Options{zeitraum: true, daywindow: true},
+		},
 	}
 	registeredCommands = make([]*discordgo.ApplicationCommand, len(SlashCommands))
 )
