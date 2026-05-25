@@ -33,7 +33,7 @@ type Data struct {
 	ServerdatenDailyMessageId  int64
 
 	ShortUserIds map[string]int16
-	NextId       int16 
+	NextId       int16
 
 	ShortChannelId map[string]int16
 	NextChannelId  int16
@@ -41,6 +41,10 @@ type Data struct {
 	DynamicChannels map[string][]string
 
 	OAuthLogins map[string]oauth.Login
+
+	// LastServerWrappedYear is the most recent year for which the bot has
+	// auto-posted a server wrapped. Used to avoid double-posting.
+	LastServerWrappedYear int16
 }
 
 func LoadData() {

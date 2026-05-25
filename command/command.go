@@ -168,6 +168,13 @@ var (
 			options:     Options{nutzer: true, year: true},
 			deferred:    true,
 		},
+		{
+			Name:        "serverwrapped",
+			description: "Generiert ein animiertes GIF mit den Server-Highlights des Jahres",
+			response:    serverwrappedResponse,
+			options:     Options{year: true},
+			deferred:    true,
+		},
 	}
 	registeredCommands = make([]*discordgo.ApplicationCommand, len(SlashCommands))
 )

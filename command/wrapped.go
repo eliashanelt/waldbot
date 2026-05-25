@@ -32,7 +32,7 @@ func wrappedResponse(query Query) (string, *discordgo.File) {
 		return fmt.Sprintf("Keine Sprachchatdaten für %v in %d gefunden.",
 			data.EffectiveName(query.member), year), nil
 	}
-	buf := renderWrappedGif(stats)
+	buf := renderScenes(buildPersonalScenes(stats))
 	if buf == nil {
 		return "Wrapped konnte nicht erstellt werden.", nil
 	}
@@ -495,14 +495,14 @@ type wrappedScene struct {
 	draw     func(img *image.RGBA, t float64, sceneOffset float64)
 }
 
-func renderWrappedGif(s wrappedStats) []byte {
+func buildPersonalScenes(s wrappedStats) []wrappedScene {
 	confetti := makeParticles(60, 7)
 
 	white := color.RGBA{255, 255, 255, 255}
 	gold := color.RGBA{255, 220, 100, 255}
 	softYellow := color.RGBA{255, 240, 180, 255}
 
-	scenes := []wrappedScene{
+	return []wrappedScene{
 		// 1. intro
 		{
 			duration: 2.2,
@@ -743,7 +743,12 @@ func renderWrappedGif(s wrappedStats) []byte {
 			},
 		},
 	}
+}
 
+// renderScenes encodes a list of scenes as an animated GIF. Each scene gets
+// its own 256-color palette so multi-scene mood shifts compress tightly and
+// gradients stay smooth.
+func renderScenes(scenes []wrappedScene) []byte {
 	g := &gif.GIF{LoopCount: 0}
 	delayCs := 100 / wrappedFps
 	sceneOffset := 0.0

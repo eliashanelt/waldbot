@@ -156,6 +156,7 @@ func minute() {
     data.MinuteUpdate(config.GuildId, saveFiles)
     cleanUpRoles()
     updateRankings()
+    command.CheckAutoPostServerWrapped(config.GuildId, config.StatsChannelId)
 }
 
 func updateRankings() {
