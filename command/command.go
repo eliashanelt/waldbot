@@ -15,6 +15,7 @@ type Query struct {
 	selfUser      bool
 	mate          *discordgo.Member
 	daywindow     int64
+	year          int64
 }
 
 var (
@@ -65,6 +66,12 @@ var (
 		Description: "Zeitraum über den die Stundenzahl berechnet wird (default 30)",
 		Required:    false,
 	}
+	YEAR_OPTION = discordgo.ApplicationCommandOption{
+		Type:        discordgo.ApplicationCommandOptionInteger,
+		Name:        "jahr",
+		Description: "Jahr für die Wrapped-Übersicht (default aktuelles Jahr)",
+		Required:    false,
+	}
 )
 
 type Options struct {
@@ -72,6 +79,7 @@ type Options struct {
 	nutzer    bool
 	mate      bool
 	daywindow bool
+	year      bool
 }
 
 type SlashCommand struct {
@@ -79,6 +87,10 @@ type SlashCommand struct {
 	description string
 	response    func(Query) (string, *discordgo.File)
 	options     Options
+	// deferred sends a "Bot is thinking..." ack immediately and follows up
+	// with the actual response once it's ready. Needed for any command whose
+	// response can't be produced inside Discord's 3-second window.
+	deferred bool
 }
 
 var (
@@ -149,6 +161,13 @@ var (
 			response:    stonksslopeallResponse,
 			options:     Options{zeitraum: true, daywindow: true},
 		},
+		{
+			Name:        "wrapped",
+			description: "Generiert ein animiertes GIF mit deinen Sprachchat-Highlights des Jahres",
+			response:    wrappedResponse,
+			options:     Options{nutzer: true, year: true},
+			deferred:    true,
+		},
 	}
 	registeredCommands = make([]*discordgo.ApplicationCommand, len(SlashCommands))
 )
@@ -184,6 +203,9 @@ func RegisterCommands(dc *discordgo.Session, guildID string) {
 		}
 		if cmd.options.daywindow {
 			options = append(options, &DAYWINDOW_OPTION)
+		}
+		if cmd.options.year {
+			options = append(options, &YEAR_OPTION)
 		}
 		fmt.Println("Adding command:", cmd.Name, "UserID: ", dc.State.User.ID)
 		dmPermission := false
@@ -268,6 +290,11 @@ func parseOptions(
 				return query, "invalide Option 'daywindow'"
 			}
 			query.daywindow = option.IntValue()
+		case "jahr":
+			if !validOptions.year {
+				return query, "invalide Option 'jahr'"
+			}
+			query.year = option.IntValue()
 		default:
 			return query, "invalides Argument " + option.Name
 		}
@@ -277,34 +304,55 @@ func parseOptions(
 	return query, ""
 }
 
+func runResponse(cmd SlashCommand, query Query, parseErr string) (string, []*discordgo.File) {
+	if parseErr != "" {
+		return "Fehler: " + parseErr, nil
+	}
+	content, file := cmd.response(query)
+	if file == nil {
+		return content, nil
+	}
+	return content, []*discordgo.File{file}
+}
+
 func InteractionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	for _, cmd := range SlashCommands {
-		if cmd.Name == i.ApplicationCommandData().Name {
-			member, memberErr := s.GuildMember(i.GuildID, i.Member.User.ID)
-			if memberErr != nil {
-				log.Println("Couldn't get member in interaction handler: ", memberErr)
-			}
-			query, err := parseOptions(i.ApplicationCommandData().Options, member, i.GuildID, cmd.options)
-			var content string
-			files := make([]*discordgo.File, 0)
-			if err != "" {
-				content = "Fehler: " + err
-			} else {
-				var file *discordgo.File
-				content, file = cmd.response(query)
-				if file != nil {
-					files = append(files, file)
-				}
-			}
-
-			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseChannelMessageWithSource,
-				Data: &discordgo.InteractionResponseData{
-					Content: content,
-					Files:   files,
-				},
-			})
+		if cmd.Name != i.ApplicationCommandData().Name {
+			continue
 		}
+		member, memberErr := s.GuildMember(i.GuildID, i.Member.User.ID)
+		if memberErr != nil {
+			log.Println("Couldn't get member in interaction handler: ", memberErr)
+		}
+		query, parseErr := parseOptions(i.ApplicationCommandData().Options, member, i.GuildID, cmd.options)
+
+		if cmd.deferred {
+			// Ack within 3s; we'll edit the response with real content below.
+			if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+			}); err != nil {
+				log.Println("Failed to send deferred ack:", err)
+				return
+			}
+			content, files := runResponse(cmd, query, parseErr)
+			edit := &discordgo.WebhookEdit{Content: &content, Files: files}
+			if _, err := s.InteractionResponseEdit(i.Interaction, edit); err != nil {
+				log.Println("Failed to edit deferred response:", err)
+			}
+			return
+		}
+
+		content, files := runResponse(cmd, query, parseErr)
+		if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: content,
+				Files:   files,
+			},
+		}); err != nil {
+			log.Println("Failed to send interaction response:", err)
+		}
+		return
 	}
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
